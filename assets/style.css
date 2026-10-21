@@ -136,3 +136,53 @@ footer.site { border-top: 1px solid var(--line); margin-top: 64px; padding: 24px
 
 .fig-limit img { max-height: 440px; width: auto; margin: 0 auto; }
 .grid-2.top { align-items: start; }
+
+/* ---------- profile / about ---------- */
+.hero-profile { position: relative; display: grid; grid-template-columns: 220px 1fr; gap: 36px; align-items: center; padding: 56px 0 24px; }
+.hero-profile::before { content: ""; position: absolute; inset: 10px -40px auto auto; width: 420px; height: 420px; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent-soft), transparent); z-index: -1; }
+.photo { width: 220px; height: 220px; border-radius: 28px; object-fit: cover; box-shadow: 0 0 0 6px var(--surface), 0 0 0 7px var(--line), 0 18px 40px -18px rgba(0,0,0,.35); }
+.photo.sm { width: 120px; height: 120px; border-radius: 22px; }
+.name-ko { font-size: 1rem; color: var(--muted); font-weight: 500; margin-left: 8px; letter-spacing: 0; }
+.role { font-size: 1.02rem; color: var(--text-2); margin: 0 0 10px; }
+.statement { font-size: 1.22rem; line-height: 1.5; color: var(--text); font-weight: 550; margin: 10px 0 14px; letter-spacing: -0.005em; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+@media (max-width: 720px) {
+  .hero-profile { grid-template-columns: 1fr; gap: 20px; padding-top: 36px; text-align: left; }
+  .photo { width: 160px; height: 160px; border-radius: 22px; }
+  .hero-profile::before { width: 280px; height: 280px; inset: 0 -60px auto auto; }
+}
+.hero-row { display: grid; grid-template-columns: 120px 1fr; gap: 24px; align-items: center; padding: 48px 0 8px; }
+@media (max-width: 560px) { .hero-row { grid-template-columns: 1fr; } }
+
+.now { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 8px 0 8px; }
+.now .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); margin-top: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 22%, transparent); }
+.now p { margin: 0; }
+
+.interest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0; }
+@media (max-width: 820px) { .interest-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .interest-grid { grid-template-columns: 1fr; } }
+.interest { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; transition: transform .15s, border-color .15s; }
+.interest:hover { transform: translateY(-2px); border-color: var(--accent); }
+.interest .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 10px; }
+.interest .ic svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.interest h3 { margin: 0 0 4px; font-size: 1rem; }
+.interest p { margin: 0; font-size: 0.92rem; line-height: 1.5; }
+.interest.focus { border-color: var(--accent); }
+.interest .badge { font-size: 0.7rem; font-weight: 650; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-left: 6px; }
+
+.timeline { list-style: none; padding: 0; margin: 12px 0; border-left: 2px solid var(--line); }
+.timeline li { position: relative; padding: 2px 0 14px 20px; margin: 0; }
+.timeline li::before { content: ""; position: absolute; left: -7px; top: 8px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.timeline .t-title { color: var(--text); font-weight: 600; }
+.timeline .t-sub { color: var(--text-2); font-size: 0.94rem; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.chip { font-size: 0.85rem; padding: 4px 11px; border-radius: 8px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--line); }
+.contact-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-top: 12px; }
+.contact-card .mail { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+.proj-card { transition: border-color .15s; }
+.proj-card:hover { border-color: var(--accent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { background: #2a6cc4; border-color: #2a6cc4; } }
+:root[data-theme="dark"] .btn.primary { background: #2a6cc4; border-color: #2a6cc4; }

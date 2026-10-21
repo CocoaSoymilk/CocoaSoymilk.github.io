@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About · HwanWoong Jeong</title>
+<meta name="description" content="HwanWoong Jeong — undergraduate in Data Science and AI at Kangnam University, exploring robot learning, VLA models and world models.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="../">HwanWoong Jeong</a>
+  <nav><a href="./">About</a><a href="../#projects">Projects</a><button class="theme-toggle" aria-label="Toggle dark mode">◐</button></nav>
+</div></header>
+
+<main class="wrap">
+<section class="hero-profile">
+  <img class="photo" src="../assets/img/profile.jpg" alt="Portrait of HwanWoong Jeong">
+  <div>
+    <div class="eyebrow">About</div>
+    <h1>HwanWoong Jeong<span class="name-ko">정환웅</span></h1>
+    <p class="role">Undergraduate · Data Science &amp; Artificial Intelligence · Kangnam University</p>
+    <p class="statement">I want machines to understand the world well enough to act in it — not just within the data they were shown.</p>
+    <div class="btns">
+      <a class="btn primary" href="mailto:tree193nn@kangnam.ac.kr">Email me</a>
+      <a class="btn" href="https://github.com/CocoaSoymilk">GitHub</a>
+      <a class="btn" href="https://huggingface.co/tree193nn">Hugging Face</a>
+    </div>
+  </div>
+</section>
+
+<div class="now">
+  <span class="dot" aria-hidden="true"></span>
+  <p><strong>Now</strong> — Teaching a low-cost SO-101 arm to pick and place with SmolVLA, calibrating a MuJoCo twin to the real robot, and comparing learned policies with an LLM agent that plans and verifies each step. The gap between the two made me curious about <strong>world models that learn how the world works from observation and use it to plan</strong>.</p>
+</div>
+
+<h2>Research interests</h2>
+<div class="interest-grid">
+  <div class="interest focus">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 20v-5l4-4 3 3"/><path d="M14 14l3-6"/><circle cx="17.5" cy="6.5" r="1.8"/></svg></div>
+    <h3>Robot learning &amp; VLA<span class="badge">focus</span></h3>
+    <p>Vision-language-action models, imitation learning, DAgger and sim-to-real transfer on real hardware.</p>
+  </div>
+  <div class="interest focus">
+    <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z"/></svg></div>
+    <h3>World models &amp; planning<span class="badge">focus</span></h3>
+    <p>How agents could learn the rules of the physical world from observation, and plan with them in new situations.</p>
+  </div>
+  <div class="interest">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16v10H8l-4 4z"/><path d="M8 10h8"/><path d="M8 13h5"/></svg></div>
+    <h3>LLMs &amp; NLP</h3>
+    <p>Language models as reasoning and tool-using agents, including for robot control.</p>
+  </div>
+  <div class="interest">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+    <h3>AI safety &amp; red-teaming</h3>
+    <p>Evaluating LLM safety, and checking whether the judges used in those evaluations can be trusted.</p>
+  </div>
+  <div class="interest">
+    <div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/><path d="M8.5 11h5"/><path d="M11 8.5v5"/></svg></div>
+    <h3>Explainable AI</h3>
+    <p>Making model decisions interpretable, so their failures can be understood rather than just measured.</p>
+  </div>
+  <div class="interest">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 12v9"/><path d="M12 12l-6.5-3.5"/><path d="M12 12l6.5-3.5"/><path d="M12 12l0-8"/><circle cx="12" cy="12" r="1.6"/></svg></div>
+    <h3>Energy &amp; tabular ML</h3>
+    <p>Renewable-energy forecasting and gradient-boosted models (XGBoost) on real-world tabular data.</p>
+  </div>
+</div>
+
+<h2>Selected project</h2>
+<div class="card proj-card">
+  <a href="../projects/so101/"><img src="../projects/so101/media/cl_left_top_end.jpg" alt="SO-101 arm after placing a cube in the box" loading="lazy"></a>
+  <div>
+    <div class="eyebrow">Oct 2026 · Experiments</div>
+    <h3><a href="../projects/so101/">SO-101 Pick-and-Place: Sim-to-Real Experiments</a></h3>
+    <p>A learned policy memorizes where the cube was; a calibrated simulator, broad data and DAgger push sim generalization from 4% to 63%; an LLM agent with a hand-built world model places the cube from unseen positions — and still fails on an unfamiliar bottle.</p>
+  </div>
+</div>
+
+<h2>Education</h2>
+<ul class="timeline">
+  <li><div class="t-title">Kangnam University</div><div class="t-sub">B.S. in Data Science, double major in Artificial Intelligence</div></li>
+</ul>
+
+<h2>Toolbox</h2>
+<div class="chips">
+  <span class="chip">Python</span><span class="chip">PyTorch</span><span class="chip">Hugging Face</span><span class="chip">LeRobot</span><span class="chip">SmolVLA</span><span class="chip">MuJoCo</span><span class="chip">OpenCV</span><span class="chip">XGBoost</span><span class="chip">pandas</span>
+</div>
+
+<h2>Contact</h2>
+<div class="contact-card">
+  <div><div class="muted">Best way to reach me</div><div class="mail">tree193nn@kangnam.ac.kr</div></div>
+  <a class="btn primary" href="mailto:tree193nn@kangnam.ac.kr">Send an email</a>
+</div>
+</main>
+
+<footer class="site"><div class="wrap">© 2026 HwanWoong Jeong</div></footer>
+</body>
+</html>
