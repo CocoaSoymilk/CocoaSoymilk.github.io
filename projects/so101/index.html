@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real2Sim2Real on a $100 Arm</title>
+<meta name="description" content="Calibrating a MuJoCo twin of the SO-101 to break position memorization in SmolVLA, and an agentic closed-loop pick-and-place baseline — on a single 8 GB GPU.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/theme.js"></script>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="../../">CocoaSoymilk</a>
+  <nav><a href="../../">About</a><a href="../../#projects">Projects</a><button class="theme-toggle" aria-label="Toggle dark mode">◐</button></nav>
+</div></header>
+
+<main class="wrap">
+<section class="hero">
+  <div class="eyebrow">Project · Oct 2026</div>
+  <h1>Real2Sim2Real on a $100 Arm</h1>
+  <p class="lead">Calibrating a MuJoCo twin of the SO-101 to break position memorization in a small VLA — and asking how far an LLM agent gets when it plans and verifies every step itself.</p>
+  <div class="tags">
+    <span class="tag">SO-101</span><span class="tag">SmolVLA</span><span class="tag">MuJoCo</span><span class="tag">Real2Sim2Real</span><span class="tag">DAgger</span><span class="tag">Flow-matching RL</span><span class="tag">Agentic manipulation</span>
+  </div>
+  <div class="btns">
+    <span class="btn disabled">Paper (CoRL 2026 LBR, in prep.)</span>
+    <span class="btn disabled">Code (coming soon)</span>
+  </div>
+</section>
+
+<div class="callout">
+  <p><strong>TL;DR</strong></p>
+  <ul>
+    <li>SmolVLA fine-tuned on ~30 teleoperated demos reproduces smooth, human-like picks — <strong>but only where the demos were</strong>: 62% at the training spot, 4% once the cube moves 4–7 cm.</li>
+    <li>A MuJoCo twin calibrated from the robot's own logs (camera, base pose, joint zeros, latency, cube texture) cuts the grasp-point error from 3.4 cm to <strong>0.42 cm</strong>. Broad randomized demos + two DAgger rounds raise sim generalization from 4% to <strong>63%</strong>. Flow-Noise PPO adds nothing measurable.</li>
+    <li>Co-training real + sim data starts to transfer: the real arm picks a cube away from the demo spot. It still drifts toward the memorized spot.</li>
+    <li>An agentic baseline (Claude: TOP-camera detection → calibrated twin → IK → step-by-step verification) places the cube in the box from <strong>unseen positions</strong>, but fails on an unfamiliar transparent bottle at the edge of the arm's reach.</li>
+  </ul>
+</div>
+
+<h2 id="videos">Real-arm rollouts</h2>
+<div class="grid-3">
+  <figure><video src="media/vla_sticker_1.mp4" poster="media/vla_sticker_1.jpg" controls muted playsinline loop preload="none"></video>
+    <figcaption>SmolVLA, real demos only — training spot. Left: top camera, right: wrist camera.</figcaption></figure>
+  <figure><video src="media/vla_sticker_2.mp4" poster="media/vla_sticker_2.jpg" controls muted playsinline loop preload="none"></video>
+    <figcaption>Same model, another trial at the training spot.</figcaption></figure>
+  <figure><video src="media/cotrain_offspot.mp4" poster="media/cotrain_offspot.jpg" controls muted playsinline loop preload="none"></video>
+    <figcaption>Real + sim co-training — cube placed <em>away</em> from the demo spot, picked and placed.</figcaption></figure>
+</div>
+
+<h2 id="setup">Setup</h2>
+<div class="table-wrap"><table>
+  <tr><th>Robot</th><td>SO-ARM101 leader + follower, 6× Feetech STS3215, 5 V supply</td></tr>
+  <tr><th>Cameras</th><td>Top camera at 75 cm + wrist camera, 640×480</td></tr>
+  <tr><th>Task</th><td>Pick a 3.5 cm mahjong-tile cube and place it in a 10×10×6.5 cm box</td></tr>
+  <tr><th>Policy</th><td>SmolVLA (450M); only the 100M action expert is trained, vision encoder frozen; 50-step chunks, 10 Euler denoising steps</td></tr>
+  <tr><th>Simulator</th><td>MuJoCo + Menagerie SO-101, calibrated to the real cell</td></tr>
+  <tr><th>Compute</th><td>One RTX 4060 Ti (8 GB). A 20k-step fine-tune takes ~80 min</td></tr>
+</table></div>
+
+<h2 id="memorization">Part A · The problem: position memorization</h2>
+<p>With 31 teleoperated demos (all with the cube on one sticker), SmolVLA's trajectories and grasp timing look human. But the policy learns <em>"go to that spot"</em>, not <em>"go to the cube"</em>. Moving the cube a few centimetres off the sticker gives 0/4 picks on the real arm. In simulation, a model trained on 120 fixed-spot demos scores 0.62 at the spot and 0.04 when the cube is shifted 4–7 cm.</p>
+
+<h2 id="real2sim">Real2Sim: a twin calibrated from the robot's own logs</h2>
+<figure><img src="media/real2sim_top.jpg" alt="Real top camera, calibrated MuJoCo render and overlay" loading="lazy">
+  <figcaption>(a) Real top camera, (b) calibrated MuJoCo render at the same joint state, (c) overlay. Camera pose and FOV are fit together with the mat by mask IoU (mat IoU 0.97).</figcaption></figure>
+<div class="table-wrap"><table>
+  <tr><th>What</th><th>How</th><th>Result</th></tr>
+  <tr><td>Top camera</td><td>Mat + robot-silhouette IoU</td><td>Mat IoU 0.97</td></tr>
+  <tr><td>Wrist camera</td><td>Gripper-jaw silhouette IoU</td><td>0.63 → 0.83</td></tr>
+  <tr><td>Joint zeros</td><td>Grasp-moment correspondences (fingertip ≈ detected cube), constrained by side photos and rest-pose table contact</td><td>Release-to-cup error 2.32 → 1.06 cm</td></tr>
+  <tr><td>Robot base pose</td><td>31 grasp + 25 release correspondences: the base had shifted 3.4 cm relative to the camera</td><td>Grasp error 3.4 → <strong>0.42 cm</strong>, release 2.4 → 1.2 cm</td></tr>
+  <tr><td>Latency</td><td>Replaying recorded leader commands</td><td>4-frame effective delay (follower lags leader by 4 frames)</td></tr>
+  <tr><td>Appearance</td><td>Cube faces cropped from real wrist frames, perspective-corrected</td><td>Mahjong-tile cube texture</td></tr>
+  <tr><td>Scripted teacher</td><td>Tilted fingers, separate grasp / carry tilt, human-like speed &amp; gripper aperture</td><td>Far box layout 3/20 → 19/20</td></tr>
+</table></div>
+<div class="grid-2 top">
+  <figure class="fig-limit"><img src="media/base_fix_overlay.jpg" alt="Base pose correction overlay" loading="lazy"><figcaption>Base-pose fix: the robot had moved 3.4 cm relative to the camera between sessions — found only through grasp/release correspondences.</figcaption></figure>
+  <figure><img src="media/wrist_real_vs_sim.jpg" alt="Wrist camera real vs sim" loading="lazy"><figcaption>Wrist view, real vs. simulated, after adding the real cube texture.</figcaption></figure>
+</div>
+
+<h2 id="sim">Improving the policy in simulation</h2>
+<p>Five sim conditions with 100 episodes each: C1 training spot · C2 shifted 4–7 cm · C3 anywhere · C4 training spot, colored cube · C5 anywhere, colored cube. <strong>Generalization</strong> = mean of C2, C3, C5.</p>
+<ul>
+  <li><strong>Broad randomized demos (405 ep.)</strong>: cube anywhere in reach, ±45° yaw, random colors, camera pose/FOV and appearance randomization.</li>
+  <li><strong>DAgger recovery demos</strong>: roll out the policy, snapshot states it actually visits, restore them and let the teacher finish. Each round re-trains from the base model.</li>
+  <li><strong>Flow-Noise PPO</strong> (following πRL): learnable Gaussian noise at each of SmolVLA's 10 denoising steps makes the chunk log-likelihood tractable. Only the action expert is updated, with per-dimension ratio clipping. Rendering only at chunk boundaries makes an episode 3.7 s instead of ~30 s.</li>
+</ul>
+
+<div class="card">
+  <div class="eyebrow">Sim generalization (mean of C2, C3, C5)</div>
+  <div class="bars" role="img" aria-label="Generalization by training stage">
+    <div class="bar-row"><div class="bar-label">Fixed-spot demos (120)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:4%"><span class="bar-val">0.04</span><span class="bar-tip">C2 .04 · C3 .06 · C5 .02</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">+ broad randomized (405)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:36%"><span class="bar-val">0.36</span><span class="bar-tip">C2 .26 · C3 .34 · C5 .48</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">+ DAgger round 1</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:45%"><span class="bar-val">0.45</span><span class="bar-tip">C2 .47 · C3 .43 · C5 .46</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">+ DAgger round 2</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:63%"><span class="bar-val">0.63</span><span class="bar-tip">C2 .64 · C3 .57 · C5 .67</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">+ Flow-Noise PPO</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:61%"><span class="bar-val">0.61</span><span class="bar-tip">C2 .64 · C3 .57 · C5 .63</span></div></div></div>
+  </div>
+</div>
+<div class="table-wrap"><table>
+  <tr><th>Model</th><th class="num">C1</th><th class="num">C2</th><th class="num">C3</th><th class="num">C4</th><th class="num">C5</th><th class="num">Gen.</th></tr>
+  <tr><td>Fixed-spot demos (120 ep.)<sup>†</sup></td><td class="num">.62</td><td class="num">.04</td><td class="num">.06</td><td class="num">.58</td><td class="num">.02</td><td class="num">.04</td></tr>
+  <tr><td>+ broad randomized (405 ep.)</td><td class="num">.22</td><td class="num">.26</td><td class="num">.34</td><td class="num">.38</td><td class="num">.48</td><td class="num">.36</td></tr>
+  <tr><td>+ DAgger round 1 (+72 ep.)</td><td class="num">.45</td><td class="num">.47</td><td class="num">.43</td><td class="num">.52</td><td class="num">.46</td><td class="num">.45</td></tr>
+  <tr class="best"><td>+ DAgger round 2 (+50 ep.)</td><td class="num">.48</td><td class="num">.64</td><td class="num">.57</td><td class="num">.67</td><td class="num">.67</td><td class="num">.63</td></tr>
+  <tr><td>+ Flow-Noise PPO (best of 60 it.)</td><td class="num">.60</td><td class="num">.64</td><td class="num">.57</td><td class="num">.67</td><td class="num">.63</td><td class="num">.61</td></tr>
+</table></div>
+<p class="muted">† 50 episodes per condition. PPO evaluation swung between 30% and 62% across iterations (±8 pp std over 40 episodes). The exploration noise had to be tiny (σ = 0.011; σ = 0.08 collapsed success to 2/24). A "re-train on own successes" loop made things worse (18 → 15 → 14 / 20), so we switched to DAgger.</p>
+<figure><img src="media/generalization_samples.jpg" alt="Sample sim episodes across conditions" loading="lazy"><figcaption>Sample simulated episodes across the generalization conditions.</figcaption></figure>
+
+<h2 id="transfer">Sim2Real: co-training on the real arm</h2>
+<div class="table-wrap"><table>
+  <tr><th>Model</th><th>Data</th><th>Real-arm observation</th></tr>
+  <tr><td>Real only</td><td>31 real demos (cube within ~2 cm)</td><td>Clean trajectories and grasps at the training spot (~3–4 / 4 into the box); <span class="no">0 / 4</span> elsewhere</td></tr>
+  <tr><td>Sim only (fixed spots)</td><td>60 sim demos</td><td>Picks the real cube, but hesitates just before grasping</td></tr>
+  <tr><td>Real + sim (right region)</td><td>31 real + 200 sim (cube randomized over a 11×13 cm region)</td><td>Off-spot pick and place succeeds (video above); still biased toward the memorized spot</td></tr>
+</table></div>
+<p class="muted">Real-arm trials are few (4 per condition) and should be read as qualitative. Real-arm evaluation uses synchronous inference; real-time chunking produced odd upward postures on our setup.</p>
+
+<h2 id="agent">Part B · An agentic baseline: Claude drives the arm</h2>
+<p>Instead of a learned policy, an LLM agent (Claude) operates the same arm through code. It detects the cube in the top camera, back-projects it with the calibrated camera, plans with the simulator's IK, and executes in short segments. After each segment it stops and checks the top camera, the wrist camera and the measured joint angles before moving on.</p>
+<figure><img src="media/closed_loop_left_steps.jpg" alt="Closed-loop pick steps, top and wrist camera" loading="lazy">
+  <figcaption>Closed-loop pick from an unseen position (cube at 16.5, 12.7 cm). Each tile shows the top camera (magenta ×: fingertip computed from measured joints) and the wrist camera at that checkpoint. The wrist frame for step 2 was not saved correctly during the run.</figcaption></figure>
+<ol class="steps">
+  <li>Top camera: detect cube and box → robot-frame coordinates (grasp-point error 0.42 cm after calibration).</li>
+  <li>Rise straight up, move horizontally at a reachable height, descend vertically to 8.5 cm. Open the gripper only once above the cube.</li>
+  <li>At 4 cm, compare real and simulated wrist views (logged as a sanity check).</li>
+  <li>Descend to the cube centre and close. Grip reading ≈ 17 means "holding"; ≈ 1 means a miss.</li>
+  <li>Lift, then stop 3 cm before the box wall and check that the hanging cube's bottom clears the rim by ≥ 1 cm.</li>
+  <li>Raise the elbow and enter the box from above. Lower until the cube is 1.5 cm above the rim and release.</li>
+  <li>Close the gripper, rise vertically, verify ≥ 3 cm clearance, retreat, then re-detect the box (including rotation) to judge success.</li>
+</ol>
+<div class="table-wrap"><table>
+  <tr><th>Run</th><th>Position</th><th>Outcome</th><th>What it taught us</th></tr>
+  <tr><td>Open-loop replay</td><td>far left</td><td class="no">miss</td><td>LeRobot's <code>max_relative_target</code> clips goals to the current pose, leaving the servo too little torque against gravity</td></tr>
+  <tr><td>1</td><td>far left (r = 26 cm)</td><td class="no">pushed box</td><td>Joint-space interpolation from rest scrapes the table; plan up → across → down</td></tr>
+  <tr><td>2–3</td><td>far left</td><td class="no">aborted</td><td>Absolute wrist-vs-sim matching diverges at hover height (true even for human demos)</td></tr>
+  <tr><td>4</td><td>training spot</td><td class="no">held, not released</td><td>Over-strict release rule; constant full squeeze overloads the gripper servo</td></tr>
+  <tr><td>5</td><td>training spot</td><td class="ok">in box</td><td>The open gripper hooked the wall on the way out; close it before retreating</td></tr>
+  <tr><td>6</td><td><strong>unseen left (16.5, 12.7)</strong></td><td class="ok">in box</td><td>Elbow-up approach (a human tip) raised the over-box height from 8.8 to 11.9 cm</td></tr>
+</table></div>
+<figure><img src="media/wrist_demo_targets.jpg" alt="Wrist camera at grasp moments in human demos" loading="lazy">
+  <figcaption>Wrist frames from 31 human demos near the grasp (red: detected cube, magenta: simulated projection). Real and simulated wrist views disagree by hundreds of pixels at 8.5 cm but agree within ~20 px from 4 cm down. This is why the agent trusts the top camera plus measured joint angles for alignment, and uses the wrist only as a close-range check.</figcaption></figure>
+
+<h2 id="bottle">Part C · Where the agent breaks: an unfamiliar bottle</h2>
+<p>Next task: pick a small transparent water bottle (blue cap marked with ×) and stand it on a white square. No sizes or distances were given; everything had to come from the cameras. The agent estimated height from a single top image using vanishing-point geometry: vertical edges converge toward the camera's nadir, so the bottle's base lies on the cap → vanishing-point line. It then probed for the cap top by descending until the measured joints stopped following the command, and finally tried wrist-camera visual servoing.</p>
+<div class="grid-3">
+  <figure><img src="media/bottle_estimate_crop.jpg" alt="Bottle height estimation" loading="lazy"><figcaption>Height from one top image: silhouette (red), cap (magenta), estimated base (green). Estimates varied 12.9–16.6 cm across frames.</figcaption></figure>
+  <figure><img src="media/bottle_miss.jpg" alt="Gripper beside the bottle" loading="lazy"><figcaption>A probe "contact" turned out to be the bottle's shoulder; the gripper closed beside the bottle.</figcaption></figure>
+  <figure><img src="media/bottle_wrist_servo.jpg" alt="Wrist view of the cap during servoing" loading="lazy"><figcaption>Wrist servoing: the cap is clearly visible, but a closing rule based on blob size alone fired before the cap was between the jaws.</figcaption></figure>
+</div>
+<p><strong>Result: 0 grasps in 7 runs</strong> (the bottle was never knocked over). The cap sat 14–16 cm high at 25–29 cm reach, right at the arm's limit: reaching it needs 16–24° wrist tilt, with 2–3 cm of sag the encoders don't see. The pieces that worked — touch probing via encoder lag, load-based lift test, contact-detected placement, wrist-camera cap detection — are in place for the next attempt.</p>
+
+<h2 id="compare">Learned policy vs. agent</h2>
+<div class="table-wrap"><table>
+  <tr><th></th><th>SmolVLA (learned)</th><th>Claude (agentic)</th></tr>
+  <tr><td>Strength</td><td>Smooth, fast, human-like grasp timing; learns fine visual alignment from data</td><td>Generalizes to unseen positions geometrically; verifies, recovers and explains each step</td></tr>
+  <tr><td>Weakness</td><td>Bound to the data's coverage (memorizes positions); hard to debug</td><td>Slow; every behavior is a hand-written rule, and a wrong rule fails outright; weak at fine visual alignment</td></tr>
+  <tr><td>Needs</td><td>Diverse data</td><td>Accurate calibration and an object model</td></tr>
+</table></div>
+<div class="callout"><p><strong>They are complementary.</strong> The agent's closed-loop picker can act as an <em>autonomous real-world data generator</em>: put the cube anywhere, keep the successful episodes as demos, and train the policy on positions no human demonstrated. For hard objects, a few human demos can teach the policy the "align by looking" skill, while the agent handles localization, safety checks and recovery.</p></div>
+
+<h2 id="lessons">Lessons learned</h2>
+<ul>
+  <li><strong>Data coverage is the generalization range.</strong> Demos within 2 cm give a policy that works within 2 cm.</li>
+  <li><strong>Sim data helps only when the task definition matches.</strong> A box 6 cm off in sim made the real policy place short.</li>
+  <li><strong>Check for silent setup drift.</strong> Both a 3.4 cm base shift and a 6 cm box shift were found only through correspondences.</li>
+  <li><strong>Never calibrate from one cue alone.</strong> Grasp-only fitting found a +14° / −13° shoulder–elbow solution that broke every other piece of evidence.</li>
+  <li><strong>Log the physical outcome separately from the success criterion.</strong> 34 of 38 "failed" teacher demos had actually put the cube in the cup.</li>
+  <li><strong>Recovery data beats self-imitation.</strong> DAgger improved results; re-training on the policy's own successes degraded them.</li>
+  <li><strong>For direct control, move in Cartesian segments and verify with measured joints.</strong> Don't clip goals relative to the current pose. Account for the held object hanging below the fingertip.</li>
+  <li><strong>Human intuition transfers instantly to an agent.</strong> "Open only above the cube" and "raise the elbow before placing" each turned a failure into a success within one run.</li>
+</ul>
+
+<h2 id="next">What's next</h2>
+<ul>
+  <li>Use the closed-loop agent to collect diverse real demos automatically, then re-train SmolVLA.</li>
+  <li>Co-train with both sim regions (left + right) and compare at matched real-arm positions.</li>
+  <li>Bottle: fix the servo closing rule, try a side grasp of the body, and add a few human demos.</li>
+  <li>Write-up as a CoRL 2026 Late-Breaking Results abstract.</li>
+</ul>
+</main>
+
+<footer class="site"><div class="wrap">
+  Built with an SO-ARM101, LeRobot, SmolVLA and MuJoCo. Experiments run with Claude as a research and robot-control assistant.
+</div></footer>
+</body>
+</html>
