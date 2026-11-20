@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시뮬레이션 두 색 큐브 실험</title>
+<meta name="description" content="Isaac Sim에서 빨강·초록 큐브 시연 400편을 자동 생성해 SmolVLA를 학습한 실험 노트. 학습량을 6배로 늘리자 학습한 배치에서는 지시한 색을 집기 시작했지만, 처음 보는 배치에서는 거의 실패했습니다.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/theme.js"></script>
+<style>
+  body { font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, "Segoe UI", sans-serif; word-break: keep-all; }
+  .hyp td:first-child { white-space: nowrap; }
+  .refs li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="../../">HwanWoong Jeong</a>
+  <nav><a href="../../">About</a><a href="../../#projects">Projects</a><button class="theme-toggle" aria-label="다크 모드 전환">◐</button></nav>
+</div></header>
+
+<main class="wrap">
+<section class="hero">
+  <div class="eyebrow">실험 노트 · 2026년 11월</div>
+  <h1>시뮬레이션 두 색 큐브 실험: 학습량을 늘리면 색을 따를까</h1>
+  <p class="lead"><a href="../duplo-color/">색깔 블록 실험</a>에서 SmolVLA는 지시문의 색을 쓰지 않았습니다. 실제 팔로는 데이터와 시행 수를 늘리기 어려워서, 같은 질문을 Isaac Sim으로 옮겨 시연 400편을 자동으로 만들었습니다. 첫 학습은 실패했고, 그 원인을 학습량에서 찾아 다시 학습한 결과까지 정리한 노트입니다.</p>
+  <div class="tags">
+    <span class="tag">Isaac Sim</span><span class="tag">SO-101</span><span class="tag">SmolVLA</span><span class="tag">LeRobot</span><span class="tag">언어 조건화</span><span class="tag">일반화</span>
+  </div>
+</section>
+
+<div class="callout">
+  <p><strong>요약</strong></p>
+  <ul>
+    <li>Isaac Sim에서 빨강·초록 큐브 두 개를 놓고, IK 스크립트로 <strong>같은 배치에서 색만 바꾼 시연 짝</strong>을 만들었습니다. 학습에는 394편(196,072프레임, 배치 197개, 지시문 318종)을 썼습니다.</li>
+    <li>첫 학습(2만 스텝)은 프레임 하나를 평균 <strong>0.82번</strong>만 본 셈이었고, 학습한 배치에서도 큐브를 들어 올리지 못했습니다. 선행 연구의 미세조정은 대개 5~30 에폭 이상입니다.</li>
+    <li>12만 스텝(4.9 에폭)으로 다시 학습하자, <strong>학습한 배치에서는 10편 중 4편</strong>을 성공했고 같은 화면에서 지시만 바꾼 짝 5쌍 중 3쌍이 두 지시 모두 맞는 큐브로 갔습니다.</li>
+    <li>반면 <strong>처음 보는 배치에서는 40편 중 1~2편</strong>만 성공했습니다. 4만·8만·12만 체크포인트 사이에 차이가 없었고, 처음 다가간 큐브의 색은 우연 수준이었습니다.</li>
+    <li>학습량은 학습 배치의 성능만 올렸습니다. 지금 가장 유력한 해석은 배치 197개를 외웠다는 것이지만, 학습 배치 평가가 10편뿐이라 아직 가설입니다.</li>
+  </ul>
+</div>
+
+<h2 id="toc">목차</h2>
+<ol class="toc">
+  <li><a href="#why">왜 시뮬레이션인가</a></li>
+  <li><a href="#setup">실험 환경</a></li>
+  <li><a href="#data">시연 생성</a></li>
+  <li><a href="#first">첫 학습: 2만 스텝</a></li>
+  <li><a href="#epochs">프레임 하나를 몇 번 보나</a></li>
+  <li><a href="#long">다시 학습: 12만 스텝</a></li>
+  <li><a href="#eval">닫힌 루프 평가</a></li>
+  <li><a href="#hypo">확인된 것과 가설</a></li>
+  <li><a href="#lit">관련 연구</a></li>
+  <li><a href="#next">다음 실험</a></li>
+  <li><a href="#refs">참고문헌</a></li>
+</ol>
+
+<h2 id="why">왜 시뮬레이션인가</h2>
+<p>실제 팔 실험에서는 75편을 모으는 데 하루가 걸렸고, 평가도 7회가 한계였습니다. 그 정도 표본으로는 "모델이 지시문을 안 쓴다"와 "학습이 덜 됐다"를 가르기 어렵습니다. 시뮬레이션에서는 시연과 평가를 수백 편 단위로 자동화할 수 있고, 큐브 위치와 지시문을 정확히 통제할 수 있습니다. 색은 두 가지로 줄였습니다. 우연 수준이 50%라 결과를 읽기 쉽고, 색 판단 외의 변수를 줄이려는 목적입니다.</p>
+
+<h2 id="setup">실험 환경</h2>
+<div class="table-wrap"><table>
+  <tr><th>시뮬레이터</th><td>Isaac Sim, SO-101 모델. 실제 팔의 휴식 자세·상자 위치·카메라 배치를 실측값에 맞춤</td></tr>
+  <tr><th>카메라</th><td>TOP(위에서 내려다봄) + 손목, 640×480 · 30 fps</td></tr>
+  <tr><th>물체</th><td>빨강·초록 큐브 두 개와 검은 상자</td></tr>
+  <tr><th>과제</th><td>지시한 색의 큐브를 집어 상자에 넣기. 다른 큐브는 건드리지 않아야 함</td></tr>
+  <tr><th>정책</th><td>SmolVLA(<code>lerobot/smolvla_base</code>에서 시작), 50스텝 청크</td></tr>
+  <tr><th>학습 범위</th><td><strong>액션 전문가만</strong> 학습(약 1억 파라미터). 비전·언어 모델은 고정, 이미지 임베딩의 √d 배율은 공식 기본값 그대로 유지</td></tr>
+  <tr><th>연산</th><td>RTX 4060 Ti (8 GB) 한 장</td></tr>
+</table></div>
+
+<h2 id="data">시연 생성</h2>
+<p>사람이 조종하는 대신 IK 경유점과 최소 저크 보간으로 궤적을 만들었습니다. 순서는 휴식 대기 → 목표 위로 이동하며 그리퍼 열기 → 직선 하강 → 닫기 → 들기 → 상자 위 → 놓기 → 휴식 복귀입니다. 속도와 경유 높이는 실제 팔 시연의 통계에 맞췄습니다.</p>
+<div class="table-wrap"><table>
+  <tr><th>설계 요소</th><th>내용</th><th>의도</th></tr>
+  <tr><td>짝 구조</td><td>한 배치에서 빨강 목표 1편, 초록 목표 1편</td><td>출발 직전 화면은 같고 지시문만 다른 <strong>반사실 짝</strong></td></tr>
+  <tr><td>다양화</td><td>큐브 위치·방향, 경유 높이, 속도, 대기 시간, 그리퍼 개방량, 시작 자세 노이즈</td><td>한 궤적을 외우지 못하게</td></tr>
+  <tr><td>지시문</td><td>목적어 6종 × 동사 문장 6종 + 강조구 + 속도 부사. 10%는 "빨강, 초록 말고"처럼 다른 색이 문장에 나옴. 모든 틀은 두 색에 같은 확률로 쓰임</td><td>색 단어만이 목표를 가르도록</td></tr>
+  <tr><td>속도 부사</td><td>slowly·quickly 류 부사는 실제 시연 속도와 연결</td><td>부사도 의미 있는 신호가 되게</td></tr>
+  <tr><td>HOLDOUT 틀</td><td>"Could you move the … over to the box?" 등 3가지 문장 틀은 학습에서 빼고 평가에만 사용</td><td>새 문장 일반화 확인</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+  <tr><th>항목</th><th>결과</th></tr>
+  <tr><td>생성</td><td>402편 · 200,407프레임</td></tr>
+  <tr><td>점검</td><td>영상 프레임 수와 기록 길이를 편마다 대조. 4편에서 인코더 큐가 넘쳐 영상 프레임이 1장 빠진 것을 발견(타임스탬프는 연속이라 겉보기엔 정상)</td></tr>
+  <tr><td>학습 사용</td><td>문제 4편의 짝까지 8편을 빼고 <strong>394편 · 196,072프레임 · 배치 197개 · 지시문 318종</strong></td></tr>
+</table></div>
+
+<h2 id="first">첫 학습: 2만 스텝</h2>
+<p>2만 스텝 × 배치 8로 학습했습니다(loss 0.053). 실제 팔 실험과 같은 스텝 수였지만, 데이터가 4배 늘어 학습량은 1/4이 됐습니다. 시뮬레이터에서 바로 돌려 보니 처음 보는 배치 5편, 학습한 배치 2편이 모두 실패했습니다. 빨강 지시에는 빨강 쪽으로 내려갔지만 큐브를 0.1 cm만 들었고, 초록 지시에는 큐브에 다가가지도 않았습니다.</p>
+<p>학습 데이터 프레임에서 첫 행동을 비교하면 오차가 작았습니다. 큰 동작은 배웠지만, 닫힌 루프에서 필요한 잡기는 배우지 못한 상태로 읽었습니다.</p>
+
+<h2 id="epochs">프레임 하나를 몇 번 보나</h2>
+<p>LeRobot 0.6의 학습은 모든 에피소드의 프레임을 한 풀에 넣고, 에폭마다 무작위로 섞어 배치를 뽑습니다(<code>EpisodeAwareSampler</code>). 샘플 하나는 프레임 t의 화면·관절·지시문과, 정답 행동 t~t+49입니다. 그래서 "몇 스텝"보다 "프레임 하나를 평균 몇 번 봤나(에폭)"가 학습량을 비교하는 기준이 됩니다. 선행 연구의 설정을 데이터셋 메타 파일의 프레임 수로 환산했습니다.</p>
+<div class="table-wrap"><table>
+  <tr><th>설정</th><th>원문 수치</th><th class="num">프레임 수</th><th class="num">에폭</th></tr>
+  <tr><td>SmolVLA 사전학습</td><td>20만 스텝 × 배치 256</td><td class="num">1,060만</td><td class="num">4.8</td></tr>
+  <tr><td>SmolVLA 미세조정 LIBERO</td><td>10만 × 64</td><td class="num">273,465</td><td class="num">23.4</td></tr>
+  <tr><td>SmolVLA 미세조정 Meta-World</td><td>10만 × 64</td><td class="num">204,806</td><td class="num">31.2</td></tr>
+  <tr><td>SmolVLA 실기 SO100 집기</td><td>20만 스텝, 배치 미기재</td><td class="num">19,631</td><td class="num">배치 8이면 82</td></tr>
+  <tr><td>LeRobot 문서 예시</td><td>2만 × 64</td><td class="num">19,631</td><td class="num">65</td></tr>
+  <tr><td>우리 실제 팔 (색깔 블록)</td><td>2만 × 8</td><td class="num">45,963</td><td class="num">3.5</td></tr>
+  <tr><td><strong>이번 첫 학습</strong></td><td>2만 × 8</td><td class="num">196,072</td><td class="num"><strong>0.82</strong></td></tr>
+</table></div>
+<p>무작위 추출 때문에 생기는 문제도 따로 셌습니다. 팔이 출발하기 전, 즉 화면만으로는 목표를 알 수 없어 지시문을 읽어야 하는 프레임은 <strong>7.5%</strong>(편당 약 1.2초)입니다. 잡는 순간 앞뒤 1초는 12.1%입니다. 나머지는 출발→잡기 직전 52.1%, 잡은 뒤 40.4%로, 팔 자세가 이미 목표를 드러내는 구간입니다.</p>
+<p class="muted">ACT의 "에폭"은 에피소드당 무작위 프레임 1개를 뽑는 방식이라 프레임 기준으로 환산하면 2000 에폭이 약 5 에폭입니다. ACT 저장소는 "loss가 평탄해진 뒤 3~4배 더 학습하라"고 권합니다.</p>
+
+<h2 id="long">다시 학습: 12만 스텝</h2>
+<p>다른 설정은 그대로 두고 처음부터 12만 스텝(4.9 에폭, 8시간 40분)을 학습했습니다. 2만 스텝마다 체크포인트를 저장했습니다.</p>
+<div class="table-wrap"><table>
+  <tr><th>스텝</th><td class="num">1천</td><td class="num">2만</td><td class="num">4만</td><td class="num">6만</td><td class="num">8만</td><td class="num">10만</td><td class="num">12만</td></tr>
+  <tr><th>loss</th><td class="num">0.216</td><td class="num">0.073</td><td class="num">0.043</td><td class="num">0.032</td><td class="num">0.022</td><td class="num">0.019</td><td class="num">0.019</td></tr>
+</table></div>
+<p class="muted">LeRobot의 코사인 학습률 스케줄은 학습 스텝이 감쇠 구간(기본 3만)보다 짧을 때만 감쇠 구간을 줄여 줍니다. 더 길게 학습할 때는 감쇠 구간을 직접 지정해야 해서, 학습 스크립트에 옵션을 추가해 12만으로 맞췄습니다. 첫 학습(2만)은 자동으로 2만에 맞춰 끝까지 감쇠됐습니다.</p>
+
+<h2 id="eval">닫힌 루프 평가</h2>
+<p>시뮬레이터에서 정책을 직접 돌렸습니다. 한 배치에 다섯 편을 실행합니다. 빨강·초록 각각 학습 문장 틀 1편과 HOLDOUT 틀 1편, 그리고 빈 지시문 1편입니다. 편당 최대 1000스텝(약 33초)입니다.</p>
+<div class="table-wrap"><table>
+  <tr><th>판정</th><th>기준</th></tr>
+  <tr><td>성공</td><td>목표 큐브가 상자 안에 있고, 다른 큐브는 1.5 cm 미만 이동 (시연 생성 때와 같은 기준)</td></tr>
+  <tr><td>첫 접근</td><td>그리퍼 끝이 처음 다가간 큐브 (수평 3 cm 이내, 높이 6 cm 미만). 잡기에 실패해도 색 선택을 볼 수 있음</td></tr>
+  <tr><td>지시 바꾸기 짝</td><td>같은 배치·같은 틀 종류에서 빨강 지시와 초록 지시가 각각 맞는 큐브로 갔는지</td></tr>
+</table></div>
+
+<div class="card">
+  <div class="bars" role="img" aria-label="체크포인트와 배치 종류별 성공률">
+    <div class="bar-row"><div class="bar-label">12만 · 학습한 배치 (10편)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:40%"><span class="bar-val">4/10</span><span class="bar-tip">빨강 1/5 · 초록 3/5</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">12만 · 새 배치 (40편)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:2.5%"><span class="bar-val">1/40</span><span class="bar-tip">학습 틀 1/20 · HOLDOUT 틀 0/20</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">8만 · 새 배치 (40편)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:5%"><span class="bar-val">2/40</span><span class="bar-tip">학습 틀 1/20 · HOLDOUT 틀 1/20</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">4만 · 새 배치 (40편)</div><div class="bar-track"><div class="bar-fill" tabindex="0" style="width:2.5%"><span class="bar-val">1/40</span><span class="bar-tip">학습 틀 1/20 · HOLDOUT 틀 0/20</span></div></div></div>
+  </div>
+</div>
+
+<div class="table-wrap"><table>
+  <tr><th>조건</th><th class="num">성공</th><th class="num">큐브를 3 cm 이상 들어 올림</th><th class="num">첫 접근 정답 / 오답 / 없음</th><th class="num">지시 바꾸기 짝 둘 다 정답</th></tr>
+  <tr><td>12만 · 학습한 배치</td><td class="num ok">4/10</td><td class="num">4/10</td><td class="num">7 / 0 / 3</td><td class="num">3/5</td></tr>
+  <tr><td>12만 · 새 배치</td><td class="num">1/40</td><td class="num">2/40</td><td class="num">6 / 13 / 21</td><td class="num">0/20</td></tr>
+  <tr><td>8만 · 새 배치</td><td class="num">2/40</td><td class="num">6/40</td><td class="num">9 / 9 / 22</td><td class="num">2/20</td></tr>
+  <tr><td>4만 · 새 배치</td><td class="num">1/40</td><td class="num">2/40</td><td class="num">9 / 5 / 26</td><td class="num">0/20</td></tr>
+</table></div>
+<p class="muted">학습한 배치는 학습 데이터의 배치 2~6번을 같은 위치로 다시 놓고 학습 문장 틀로만 평가했습니다. 새 배치는 학습에 없는 시드 10개입니다. 빈 지시문 편에서는 세 체크포인트 모두 대부분 어느 큐브에도 다가가지 않았습니다.</p>
+
+<figure><img src="media/fig_trainlay_pair.jpg" alt="학습한 배치에서 빨강 지시와 초록 지시가 각각 맞는 큐브를 상자에 넣는 장면" loading="lazy">
+  <figcaption>12만 체크포인트, 학습한 배치 하나. 위: 빨강 지시 → 빨강을 상자에 넣음(12.7초). 아래: 같은 화면에서 초록 지시 → 초록을 넣음(10.7초). 같은 화면에서 지시문만 바꿨는데 행동이 갈라졌습니다.</figcaption></figure>
+<figure><img src="media/fig_newlay.jpg" alt="처음 보는 배치에서 지시와 다른 큐브로 가거나 멈추는 장면" loading="lazy">
+  <figcaption>12만 체크포인트, 처음 보는 배치. 위: 빨강 지시인데 초록을 상자에 넣음. 가운데: 같은 화면에서 초록 지시인데 빨강 쪽으로 가서 잡지 못함. 두 지시의 색이 정확히 뒤바뀐 사례입니다. 아래: 다른 배치에서 빨강 지시, 큐브와 떨어진 자리로 내려가 33초 동안 머묾. 새 배치 실패의 절반은 이런 "접근 없음"이었습니다.</figcaption></figure>
+
+<h2 id="hypo">확인된 것과 가설</h2>
+<div class="table-wrap"><table class="hyp">
+  <tr><th>구분</th><th>내용</th><th>근거와 한계</th></tr>
+  <tr><td class="ok">확인</td><td>첫 학습은 선행 연구보다 학습량이 크게 적었다</td><td>0.82 에폭, 표의 최저. 선행 연구는 4.8~30 에폭 이상</td></tr>
+  <tr><td class="ok">확인</td><td>학습량을 늘리면 학습한 배치에서 잡기와 색 선택이 생긴다</td><td>2만: 학습 배치 0/2 → 12만: 4/10, 첫 접근 7편 모두 지시 색. 단 표본 10편</td></tr>
+  <tr><td class="ok">확인</td><td>새 배치 성능은 4만~12만에서 변하지 않는다</td><td>성공 1~2/40, 체크포인트 간 차이가 표본 오차 수준</td></tr>
+  <tr><td class="ok">확인</td><td>새 배치에서는 지시한 색을 고르지 못한다</td><td>첫 접근 정답과 오답이 비슷하거나 오답이 많음(12만 6 대 13)</td></tr>
+  <tr><td>가설</td><td>배치 197개를 외웠다</td><td>학습 배치와 새 배치의 격차와 맞지만, 학습 배치 평가가 10편뿐. 학습 배치 30~50개로 늘려 확인 필요</td></tr>
+  <tr><td>가설</td><td>새 배치에서 큐브에 다가가지 못하는 건 복구 장면이 없어서다</td><td>시연은 오차 없는 스크립트 궤적이라, 경로에서 조금 벗어난 상태를 한 번도 보지 못함(DART가 지적한 문제). 미검증</td></tr>
+  <tr><td>가설</td><td>지시문이 필요한 프레임이 적어 색 학습 신호가 약하다</td><td>출발 전 7.5%. 학습 배치에서는 색을 따르므로, 신호가 아예 없지는 않음</td></tr>
+</table></div>
+<div class="callout"><p><strong>지금 가장 중요한 질문</strong>은 "학습 배치에서 색을 따르는 것이 색을 본 결과인지, 배치와 지시문 짝을 외운 결과인지"입니다. 학습 배치 평가를 늘리고, 배치를 다양화한 데이터로 같은 학습을 반복하면 둘을 가를 수 있습니다.</p></div>
+
+<h2 id="lit">관련 연구</h2>
+<p>평가 전에 학습량·추출 방식·지시문 무시에 관한 연구를 정리했습니다. 2026년 논문 다수는 프리프린트이고, 일부 수치는 초록 수준에서 확인한 것입니다.</p>
+<div class="table-wrap"><table>
+  <tr><th>주제</th><th>연구</th><th>내용</th></tr>
+  <tr><td>결정 프레임 희소</td><td>Keyframe-Focused IL [1], Copycat [2], DataMIL [3], SCRIM [4]</td><td>행동이 바뀌는 프레임은 극소수인데 가장 중요. 그 프레임이나 잡기 직전 상태에 가중치를 주면 개선</td></tr>
+  <tr><td>완벽한 시연의 한계</td><td>DART [5], STAIR [6]</td><td>오차 없는 시연만으로는 닫힌 루프에서 오차가 쌓임. 시연 중 노이즈를 넣어 복구 장면을 담는 것이 효과적이고, STAIR는 프레임 재가중보다 복구 장면 추가의 이득이 크다고 보고</td></tr>
+  <tr><td>지시문 무시</td><td>LIBERO-Plus [7], LIBERO-PRO [8], LangGap [9], RoboFollow [10]</td><td>한 화면에 과제 하나인 데이터에서 VLA는 화면만으로 과제를 맞힘. 같은 화면에 여러 지시가 있는 데이터가 필요하지만, 그것만으로 격차가 다 메워지지는 않음</td></tr>
+  <tr><td>지름길·인과 혼동</td><td>Causal Confusion [11], State-free Policy [12]</td><td>원인이 아닌 상관 신호(관절 상태 등)에 기대 분포가 바뀌면 실패</td></tr>
+  <tr><td>반사실·대비 학습</td><td>CAST [13], CofactVLA [14]</td><td>같은 관측·다른 지시·다른 행동을 학습에 넣어 지시 따르기 강화. 우리 짝 구조와 같은 방향</td></tr>
+  <tr><td>다양성</td><td>Data Scaling Laws in IL [15]</td><td>일반화는 환경·물체 수에 대해 거듭제곱 법칙. 환경당 시연 수는 일정 수준 이후 효과가 작음 → 양보다 다양성</td></tr>
+</table></div>
+<p>마지막 연구가 이번 결과와 가장 직접 연결됩니다. 우리 데이터는 배치당 시연이 두 편이고 배치는 197개입니다. 같은 400편이라도 배치 수를 늘리는 쪽이 새 배치 일반화에 유리할 수 있습니다.</p>
+
+<h2 id="next">다음 실험</h2>
+<p>한 번에 하나씩 바꾸고, 판정은 모두 같은 평가기(새 배치 10개 + 학습 배치)로 합니다.</p>
+<ol class="steps">
+  <li><strong>외웠는지 확인.</strong> 학습 배치 30~50개로 평가를 늘립니다. 학습 배치 성공률이 높게 유지되면 "배치 암기" 해석이 강해집니다.</li>
+  <li><strong>배치 다양화.</strong> 시연 수는 비슷하게 두고 서로 다른 배치를 수백 개 더 만듭니다. 새 배치 성공률이 오르는지 봅니다.</li>
+  <li><strong>DART식 노이즈 시연.</strong> 실행하는 행동에는 노이즈를 섞고 라벨은 IK가 교정한 행동으로 기록해, 경로에서 벗어났다가 돌아오는 장면을 담습니다. 새 배치의 "접근 없음"을 겨냥합니다.</li>
+  <li><strong>결정 구간 가중 추출과 짝 배치.</strong> 출발 전·잡기 앞뒤 프레임을 더 자주 뽑고, 같은 배치의 빨강·초록 짝을 한 배치에 함께 넣습니다. 잡기는 되는데 색이 틀릴 때의 처방입니다.</li>
+</ol>
+<p>이 실험이 전체 계획에서 어디에 해당하는지는 <a href="../roadmap/">실험 로드맵</a>에 정리했습니다.</p>
+
+<h2 id="refs">참고문헌</h2>
+<ol class="refs">
+  <li>C. Wen et al. <em>Keyframe-Focused Visual Imitation Learning.</em> ICML 2021. <a href="https://arxiv.org/abs/2106.06452">arXiv</a></li>
+  <li>C. Wen et al. <em>Fighting Copycat Agents in Behavioral Cloning from Observation Histories.</em> NeurIPS 2020. <a href="https://arxiv.org/abs/2010.14876">arXiv</a></li>
+  <li><em>DataMIL: Selecting Data for Robot Imitation Learning with Datamodels.</em> arXiv:2505.09603. <a href="https://arxiv.org/abs/2505.09603">arXiv</a></li>
+  <li><em>Where Small Mistakes Matter (SCRIM).</em> arXiv:2610.17709. <a href="https://arxiv.org/abs/2610.17709">arXiv</a></li>
+  <li>M. Laskey et al. <em>DART: Noise Injection for Robust Imitation Learning.</em> CoRL 2017. <a href="https://arxiv.org/abs/1703.09327">arXiv</a></li>
+  <li><em>Perfect Demo Makes Poor Teacher (STAIR).</em> arXiv:2606.15587. <a href="https://arxiv.org/abs/2606.15587">arXiv</a></li>
+  <li><em>LIBERO-Plus: In-depth Robustness Analysis of Vision-Language-Action Models.</em> arXiv:2510.13626. <a href="https://arxiv.org/abs/2510.13626">arXiv</a></li>
+  <li>X. Zhou et al. <em>LIBERO-PRO.</em> arXiv:2510.03827. <a href="https://arxiv.org/abs/2510.03827">arXiv</a></li>
+  <li>Y. Hou, L. Zhao. <em>LangGap.</em> arXiv:2603.00592. <a href="https://arxiv.org/abs/2603.00592">arXiv</a></li>
+  <li><em>RoboFollow.</em> arXiv:2609.25636. <a href="https://arxiv.org/abs/2609.25636">arXiv</a></li>
+  <li>P. de Haan, D. Jayaraman, S. Levine. <em>Causal Confusion in Imitation Learning.</em> NeurIPS 2019. <a href="https://arxiv.org/abs/1905.11979">arXiv</a></li>
+  <li><em>Do You Need Proprioceptive States in Visuomotor Policies?</em> arXiv:2509.18644. <a href="https://arxiv.org/abs/2509.18644">arXiv</a></li>
+  <li>C. Glossop et al. <em>CAST: Counterfactual Labels Improve Instruction Following in VLAs.</em> arXiv:2508.13446. <a href="https://arxiv.org/abs/2508.13446">arXiv</a></li>
+  <li><em>CofactVLA.</em> arXiv:2608.04396. <a href="https://arxiv.org/abs/2608.04396">arXiv</a></li>
+  <li>F. Lin et al. <em>Data Scaling Laws in Imitation Learning for Robotic Manipulation.</em> ICLR 2025. <a href="https://arxiv.org/abs/2410.18647">arXiv</a></li>
+  <li>M. Shukor et al. <em>SmolVLA.</em> arXiv:2506.01844. <a href="https://arxiv.org/abs/2506.01844">arXiv</a></li>
+  <li>T. Zhao et al. <em>Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware (ACT).</em> RSS 2023. <a href="https://arxiv.org/abs/2304.13705">arXiv</a></li>
+</ol>
+</main>
+
+<footer class="site"><div class="wrap">
+  © 2026 HwanWoong Jeong · Isaac Sim, SO-ARM101, LeRobot, SmolVLA로 진행한 실험입니다. 실험 설계와 분석에 Claude를 연구 보조로 사용했습니다.
+</div></footer>
+</body>
+</html>

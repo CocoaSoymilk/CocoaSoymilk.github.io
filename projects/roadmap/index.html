@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SO-101 실험 로드맵</title>
+<meta name="description" content="SO-101 + VLA 실험의 전체 계획 6가지(새 위치, 새 물체, 지시한 물체 고르기, 색 구분, 여러 물체 놓기, 단계별 지시문)와 항목별 진행 상황.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/theme.js"></script>
+<style>
+  body { font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, "Segoe UI", sans-serif; word-break: keep-all; }
+  .st td:first-child { white-space: nowrap; }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="brand" href="../../">HwanWoong Jeong</a>
+  <nav><a href="../../">About</a><a href="../../#projects">Projects</a><button class="theme-toggle" aria-label="다크 모드 전환">◐</button></nav>
+</div></header>
+
+<main class="wrap">
+<section class="hero">
+  <div class="eyebrow">실험 계획 · 2026년 11월 갱신</div>
+  <h1>SO-101 실험 로드맵</h1>
+  <p class="lead">저가형 로봇 팔 SO-101과 VLA(SmolVLA)로 "학습한 것 밖에서도 동작하는가"를 단계별로 확인하는 계획입니다. 처음 세운 6가지 질문과, 각 질문에 대해 지금까지 한 실험과 결과를 함께 적었습니다.</p>
+  <div class="tags"><span class="tag">SO-101</span><span class="tag">SmolVLA</span><span class="tag">일반화</span><span class="tag">언어 조건화</span></div>
+</section>
+
+<h2 id="plan">계획</h2>
+<ol class="steps">
+  <li><strong>새 위치.</strong> 5개 구역에서 각각 10편, 총 50편을 학습하고, 학습에 넣지 않은 위치에 물체를 놓고 추론합니다.</li>
+  <li><strong>새 물체.</strong> 학습한 물체와 다른 물체 두 개를 놓고 집는지 확인합니다.</li>
+  <li><strong>지시한 물체 고르기.</strong> 사전학습에서 봤을 법한 물체 두 개(레고, 지우개) 중 지시한 물체를 집는지 확인합니다.</li>
+  <li><strong>색 구분.</strong> 학습을 진행한 뒤, 빨강·초록·파랑·보라처럼 사전학습에서 익숙한 색으로 지시한 색을 구분하는지 확인합니다.</li>
+  <li><strong>여러 물체 놓기.</strong> 여러 물체를 배치해 놓고 한 장소(또는 여러 장소)에 놓는 과제입니다.</li>
+  <li><strong>단계별 지시문.</strong> 지시문을 하나의 문장이 아니라 단계(phase) 형식으로 학습하고, 2~4번을 다시 확인합니다.</li>
+</ol>
+
+<h2 id="status">진행 상황</h2>
+<div class="table-wrap"><table class="st">
+  <tr><th>항목</th><th>상태</th><th>관련 실험과 결과</th></tr>
+  <tr><td>1. 새 위치</td><td>부분 진행</td><td>
+    큐브 시연 약 30편으로 학습한 SmolVLA는 학습 자리에서 62%, 큐브를 4~7 cm 옮기면 4%였습니다. 보정한 MuJoCo 시뮬레이터에서 넓은 범위 시연과 DAgger를 더해 시뮬레이션 일반화를 4%에서 63%로 올렸고, 실제·시뮬 혼합 학습으로 실제 팔이 시연 밖 자리에서 집기 시작했습니다(<a href="../so101/">SO-101 프로젝트</a>).
+    Isaac Sim 두 색 큐브 실험에서는 학습 배치 4/10, 새 배치 1~2/40이었습니다(<a href="../sim-cubes/">두 색 큐브 실험</a>).
+    "5구역 × 10편" 설계 그대로의 실험은 아직 하지 않았습니다.</td></tr>
+  <tr><td>2. 새 물체</td><td>미진행</td><td>
+    학습한 정책에 새 물체를 놓는 실험은 아직 없습니다. 관련 관찰로, 정책에 지시문의 목적어만 컵·바나나 등으로 바꿔 넣어도 예측 행동 변화가 생성 노이즈 차이보다 작았습니다. 정책이 목적어 단어를 거의 쓰지 않는다는 뜻이라, 새 물체 시험 전에 확인할 점입니다.
+    정책이 아닌 Claude 에이전트(카메라 검출 + IK)로 처음 보는 물병 집기를 시도했을 때는 7회 중 0회였습니다.</td></tr>
+  <tr><td>3. 지시한 물체 고르기</td><td>미진행</td><td>
+    레고·지우개 실험은 아직 하지 않았습니다. 같은 구조(같은 화면, 지시문만 다름)를 색으로 먼저 시험한 것이 4번 실험이고, 그 결과상 물체 이름으로 바꿔도 지시문을 쓰게 만드는 것이 먼저 풀어야 할 문제입니다.</td></tr>
+  <tr><td>4. 색 구분</td><td>진행 중 (주력)</td><td>
+    실제 팔 듀플로 5색 실험에서 지시한 색과 예측의 상관은 0.00이었습니다(<a href="../duplo-color/">색깔 블록 실험</a>). 이후 이미지 임베딩의 √d 배율, 입력 형식, 백본 차이를 차례로 점검했습니다. √d 배율을 빼면 모델 내부에서 색과 위치를 묶는 정보는 늘었지만, 그렇게 다시 학습한 정책도 행동은 여전히 지시문을 따르지 않았습니다.
+    Isaac Sim 빨강·초록 실험에서는 학습량을 0.82에서 4.9 에폭으로 늘리자 학습한 배치에서는 지시한 색을 따르기 시작했지만, 새 배치에서는 우연 수준이었습니다(<a href="../sim-cubes/">두 색 큐브 실험</a>).</td></tr>
+  <tr><td>5. 여러 물체 놓기</td><td>미진행</td><td>—</td></tr>
+  <tr><td>6. 단계별 지시문</td><td>미진행</td><td>
+    아직 하지 않았습니다. 4번 실험에서 지시문을 읽어야 하는 프레임(팔이 출발하기 전)이 전체의 7.5%뿐이라는 것을 확인했습니다. 단계별 지시문은 매 단계의 지시가 그 구간 행동과 직접 연결되므로, 이 희소성 문제에 대한 대안 중 하나로 볼 수 있습니다.</td></tr>
+</table></div>
+
+<div class="callout"><p><strong>순서에 대한 메모.</strong> 2·3·4·6번은 모두 "모델이 지시문을 보고 행동을 바꾸는가"에 달려 있습니다. 그래서 가장 통제하기 쉬운 색(4번)을 먼저 시뮬레이션에서 풀고, 그 방법을 물체 이름(3번)과 새 물체(2번)로 넓히는 순서로 진행하고 있습니다.</p></div>
+</main>
+
+<footer class="site"><div class="wrap">
+  © 2026 HwanWoong Jeong · 실험 설계와 분석에 Claude를 연구 보조로 사용했습니다.
+</div></footer>
+</body>
+</html>
